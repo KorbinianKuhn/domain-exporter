@@ -23,10 +23,8 @@ func CheckDomain(url string) (*domain.DomainInfo, error) {
 	if tld == "at" {
 		if strings.Contains(whois_result, "% nothing found") {
 			info.SetStatus([]string{"free"})
-		} else {
-			info.SetStatus([]string{"active"})
+			return info, nil
 		}
-		return info, nil
 	}
 
 	parsedInfo, err := whoisparser.Parse(whois_result)
@@ -37,9 +35,12 @@ func CheckDomain(url string) (*domain.DomainInfo, error) {
 			return info, nil
 		}
 		return nil, err
+	} else if len(parsedInfo.Domain.Status) > 0 {
+		info.SetStatus(parsedInfo.Domain.Status)
+	} else if parsedInfo.Registrant != nil || parsedInfo.Registrar != nil {
+		info.SetStatus([]string{"registered"})
 	}
 
-	info.SetStatus(parsedInfo.Domain.Status)
 	info.ExpiryDate = parsedInfo.Domain.ExpirationDateInTime
 
 	return info, nil

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -80,25 +81,43 @@ func (d *DomainInfo) SetStatus(status []string) {
 	}
 }
 
-func (d *DomainInfo) Status() DomainStatus {
-	if d.ExpiryDate != nil {
-		return StatusRegistered
+func mapStatus(status string) (DomainStatus, error) {
+	s := strings.ReplaceAll(strings.ToLower(status), " ", "")
+	if strings.Contains(s, "free") || strings.Contains(s, "available") || strings.Contains(s, "notregistered") || strings.Contains(s, "nomatch") {
+		return StatusFree, nil
 	}
+	if strings.Contains(s, "active") || strings.Contains(s, "ok") {
+		return StatusActive, nil
+	}
+	if strings.Contains(s, "registered") || strings.Contains(s, "inactive") || strings.Contains(s, "create") || strings.Contains(s, "hold") || strings.Contains(s, "clienttransferprohibited") {
+		return StatusRegistered, nil
+	}
+	if strings.Contains(s, "delete") || strings.Contains(s, "redemption") {
+		return StatusPendingDelete, nil
+	}
+	return StatusUnknown, fmt.Errorf("unknown status: %s", status)
+}
+
+func (d *DomainInfo) Status() DomainStatus {
+	status := StatusUnknown
 
 	for _, s := range d.status {
-		if strings.Contains(s, "free") {
-			return StatusFree
+		mappedStatus, err := mapStatus(s)
+		if err != nil {
+			slog.Warn("Unknown status to map", "status", s)
+			continue
 		}
-		if strings.Contains(s, "active") {
-			return StatusActive
+
+		if status != StatusUnknown && status != mappedStatus {
+			slog.Warn("Conflicting status found", "previous", status, "current", mappedStatus)
 		}
-		if strings.Contains(s, "registered") {
-			return StatusRegistered
-		}
-		if strings.Contains(s, "pending delete") {
-			return StatusPendingDelete
-		}
+
+		status = mappedStatus
 	}
 
-	return StatusUnknown
+	if status == StatusUnknown && d.ExpiryDate != nil {
+		status = StatusRegistered
+	}
+
+	return status
 }
