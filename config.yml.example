@@ -1,0 +1,8 @@
+check_interval_in_seconds: 86400
+
+logging:
+  level: debug
+  format: text
+
+domains:
+  - example.com

@@ -11,24 +11,24 @@ type DomainStatus int
 
 const (
 	StatusUnknown DomainStatus = iota
-	StatusActive
-	StatusRegistered
-	StatusPendingDelete
 	StatusFree
+	StatusPendingDelete
+	StatusRegistered
+	StatusActive
 )
 
 func (ds DomainStatus) String() string {
 	switch ds {
 	case StatusUnknown:
 		return "unknown"
-	case StatusActive:
-		return "active"
-	case StatusRegistered:
-		return "registered"
-	case StatusPendingDelete:
-		return "pending_delete"
 	case StatusFree:
 		return "free"
+	case StatusPendingDelete:
+		return "pending_delete"
+	case StatusRegistered:
+		return "registered"
+	case StatusActive:
+		return "active"
 	default:
 		return fmt.Sprintf("%d", int(ds))
 	}
