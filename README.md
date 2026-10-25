@@ -14,7 +14,7 @@ Prometheus domain details exporter using RDAP, Whois and NS Lookup.
 
 ## Configuration
 
-Configuration can be passed through a config.yml or as environment variables:
+Configuration can be passed through a config.yml or as environment variables (`CHECK_INTERVAL_IN_SECONDS`, `LOGGING_LEVEL`, `LOGGING_FORMAT`). Environment variables take precedence. Domains can only be set in the config.yml.
 
 config.yml
 

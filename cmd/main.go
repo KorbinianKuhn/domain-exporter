@@ -52,12 +52,7 @@ func checkDomain(url string) *domain.DomainInfo {
 }
 
 func main() {
-	// Default logger (will be overwritten during config load)
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})))
-
-	// Load config
+	// Load config (also configures the default logger)
 	c, err := config.Get()
 	panicOnError("Failed to load config", err)
 
