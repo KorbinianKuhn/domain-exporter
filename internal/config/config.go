@@ -3,12 +3,12 @@ package config
 import (
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
+	"golang.org/x/net/idna"
 )
 
 type LogFormat string
@@ -18,16 +18,6 @@ const (
 	LogFormatJSON    LogFormat = "json"
 	LogFormatConsole LogFormat = "console"
 )
-
-func (f *LogFormat) UnmarshalText(text []byte) error {
-	switch format := string(text); format {
-	case string(LogFormatText), string(LogFormatJSON), string(LogFormatConsole):
-		*f = LogFormat(format)
-		return nil
-	default:
-		return fmt.Errorf("invalid log format: %s", format)
-	}
-}
 
 type LoggingConfig struct {
 	Level     string     `mapstructure:"level"`
@@ -48,13 +38,30 @@ func (c *LoggingConfig) Parse() error {
 	default:
 		return fmt.Errorf("invalid log level: %s", c.Level)
 	}
+
+	switch c.Format {
+	case LogFormatText, LogFormatJSON, LogFormatConsole:
+	default:
+		return fmt.Errorf("invalid log format: %s", c.Format)
+	}
+
 	return nil
 }
 
 type Config struct {
 	Logging                LoggingConfig `mapstructure:"logging"`
-	CheckIntervalInSeconds int           `default:"86400" split_words:"true"`
+	CheckIntervalInSeconds int           `mapstructure:"check_interval_in_seconds"`
 	Domains                []string      `mapstructure:"domains"`
+}
+
+func validateDomain(domain string) error {
+	if !strings.Contains(domain, ".") {
+		return fmt.Errorf("invalid domain format: %s", domain)
+	}
+	if _, err := idna.Lookup.ToASCII(domain); err != nil {
+		return fmt.Errorf("invalid domain format: %s: %w", domain, err)
+	}
+	return nil
 }
 
 func Get() (Config, error) {
@@ -73,12 +80,12 @@ func Get() (Config, error) {
 	// Bind environment variables
 	_ = v.BindEnv("logging.level")
 	_ = v.BindEnv("logging.format")
-	_ = v.BindEnv("checkIntervalInSeconds")
+	_ = v.BindEnv("check_interval_in_seconds")
 
 	// Default values
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "text")
-	v.SetDefault("checkIntervalInSeconds", 86400)
+	v.SetDefault("check_interval_in_seconds", 86400)
 
 	// Optionally load config file
 	if err := v.ReadInConfig(); err != nil {
@@ -105,14 +112,18 @@ func Get() (Config, error) {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 			Level: config.Logging.SlogLevel,
 		})))
-	default:
+	case LogFormatConsole:
+		// Only works as long as slog.SetDefault has not been called before
 		slog.SetLogLoggerLevel(config.Logging.SlogLevel)
 	}
 
+	if config.CheckIntervalInSeconds <= 0 {
+		return config, fmt.Errorf("invalid check interval: %d (must be greater than 0)", config.CheckIntervalInSeconds)
+	}
+
 	for _, domain := range config.Domains {
-		_, err := url.Parse(domain)
-		if err != nil {
-			return config, fmt.Errorf("invalid domain format: %s", domain)
+		if err := validateDomain(domain); err != nil {
+			return config, err
 		}
 	}
 
