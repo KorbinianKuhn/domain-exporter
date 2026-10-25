@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Check for vulnerabilities in Go code
+        uses: golang/govulncheck-action@v1.1.0
+        with:
+          go-version-file: go.mod
+          repo-checkout: false
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: domain-exporter:ci
+
+      - name: Scan Docker image for vulnerabilities
+        uses: anchore/scan-action@v7.4.2
+        with:
+          image: domain-exporter:ci
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          output-format: table
