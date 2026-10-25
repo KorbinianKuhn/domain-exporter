@@ -81,25 +81,79 @@ func (d *DomainInfo) SetStatus(status []string) {
 	}
 }
 
+// EPP (RFC 5731) and RDAP (RFC 8056) status values plus common registry
+// specific ones, normalised by normaliseStatus.
+var statusMap = map[string]DomainStatus{
+	"ok":               StatusActive,
+	"active":           StatusActive,
+	"connect":          StatusActive, // DENIC
+	"inactive":         StatusRegistered,
+	"notdelegated":     StatusRegistered,
+	"clienthold":       StatusRegistered,
+	"serverhold":       StatusRegistered,
+	"pendingcreate":    StatusRegistered,
+	"pendingrenew":     StatusRegistered,
+	"pendingtransfer":  StatusRegistered,
+	"pendingupdate":    StatusRegistered,
+	"addperiod":        StatusRegistered,
+	"autorenewperiod":  StatusRegistered,
+	"renewperiod":      StatusRegistered,
+	"transferperiod":   StatusRegistered,
+	"locked":           StatusRegistered,
+	"registered":       StatusRegistered,
+	"pendingdelete":    StatusPendingDelete,
+	"redemptionperiod": StatusPendingDelete,
+	"pendingrestore":   StatusPendingDelete,
+	"free":             StatusFree,
+	"available":        StatusFree,
+}
+
+// Used when combining multiple statuses, the highest wins
+var statusPrecedence = map[DomainStatus]int{
+	StatusUnknown:       0,
+	StatusFree:          1,
+	StatusRegistered:    2,
+	StatusActive:        3,
+	StatusPendingDelete: 4,
+}
+
+func normaliseStatus(status string) string {
+	s := strings.ToLower(status)
+	// Whois often appends a link, e.g. "clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited"
+	if i := strings.Index(s, "http"); i >= 0 {
+		s = s[:i]
+	}
+	return strings.NewReplacer(" ", "", "-", "", "_", "").Replace(s)
+}
+
 func mapStatus(status string) (DomainStatus, error) {
-	s := strings.ReplaceAll(strings.ToLower(status), " ", "")
-	if strings.Contains(s, "free") || strings.Contains(s, "available") || strings.Contains(s, "notregistered") || strings.Contains(s, "nomatch") {
-		return StatusFree, nil
+	s := normaliseStatus(status)
+
+	if mapped, ok := statusMap[s]; ok {
+		return mapped, nil
 	}
-	if strings.Contains(s, "active") || strings.Contains(s, "ok") {
-		return StatusActive, nil
-	}
-	if strings.Contains(s, "registered") || strings.Contains(s, "inactive") || strings.Contains(s, "create") || strings.Contains(s, "hold") || strings.Contains(s, "clienttransferprohibited") {
+
+	// clientDeleteProhibited, serverTransferProhibited, ...
+	if strings.HasSuffix(s, "prohibited") {
 		return StatusRegistered, nil
 	}
-	if strings.Contains(s, "delete") || strings.Contains(s, "redemption") {
-		return StatusPendingDelete, nil
+
+	// Free text responses of some whois servers
+	for _, free := range []string{"notregistered", "nomatch", "notfound", "available", "free"} {
+		if strings.Contains(s, free) {
+			return StatusFree, nil
+		}
 	}
+	if strings.Contains(s, "registered") {
+		return StatusRegistered, nil
+	}
+
 	return StatusUnknown, fmt.Errorf("unknown status: %s", status)
 }
 
 func (d *DomainInfo) Status() DomainStatus {
 	status := StatusUnknown
+	isFree := false
 
 	for _, s := range d.status {
 		mappedStatus, err := mapStatus(s)
@@ -108,11 +162,17 @@ func (d *DomainInfo) Status() DomainStatus {
 			continue
 		}
 
-		if status != StatusUnknown && status != mappedStatus {
-			slog.Warn("Conflicting status found", "previous", status, "current", mappedStatus)
+		if mappedStatus == StatusFree {
+			isFree = true
 		}
 
-		status = mappedStatus
+		if statusPrecedence[mappedStatus] > statusPrecedence[status] {
+			status = mappedStatus
+		}
+	}
+
+	if isFree && status != StatusFree {
+		slog.Warn("Conflicting status found", "domain", d.DomainName, "status", d.status)
 	}
 
 	if status == StatusUnknown && d.ExpiryDate != nil {
