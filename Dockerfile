@@ -4,20 +4,20 @@ FROM golang:1.24.2-alpine AS builder
 
 WORKDIR /app
 
-COPY . .
+COPY go.mod go.sum ./
 
 RUN go mod download
+
+COPY . .
 
 RUN go build -o /build ./cmd/main.go
 
 # Runtime
 
-FROM alpine:latest
+FROM alpine:3.24
 
 WORKDIR /domain-exporter
 COPY --from=builder /build /app
-
-ENV IS_RUNNING_IN_DOCKER=true
 
 EXPOSE 2112
 

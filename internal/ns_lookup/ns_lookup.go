@@ -10,7 +10,8 @@ func CheckDomain(url string) (*domain.DomainInfo, error) {
 	info := domain.NewDomainInfo(url)
 	info.CheckMethod = domain.CheckMethodNSLookup
 
-	ns, err := net.LookupNS(url)
+	// Returns an error if no NS records exist
+	_, err := net.LookupNS(url)
 	if err != nil {
 		if dnsErr, ok := err.(*net.DNSError); ok && dnsErr.IsNotFound {
 			info.SetStatus([]string{"free"})
@@ -19,11 +20,7 @@ func CheckDomain(url string) (*domain.DomainInfo, error) {
 		return nil, err
 	}
 
-	if len(ns) == 0 {
-		info.SetStatus([]string{"registered"})
-	} else {
-		info.SetStatus([]string{"active"})
-	}
+	info.SetStatus([]string{"active"})
 
 	return info, nil
 }

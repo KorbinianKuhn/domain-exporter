@@ -9,8 +9,10 @@ Prometheus domain details exporter using RDAP, Whois and NS Lookup.
 
 ## Limitations
 
-- ✅ Domain status is requested through RDAP, falls back to Whois and as NS lookup as last ressort
+- ✅ Domain status is requested through RDAP, falls back to Whois and as NS lookup as last resort
 - 📅 Expiry Date is only available on a subset of top-level domains due to privacy constraints
+- 🔍 The NS lookup fallback can only tell whether a domain is delegated: a registered domain without delegation (e.g. `clientHold`) is reported as free
+
 
 ## Configuration
 
@@ -92,4 +94,3 @@ A prebuilt dashboard is [here](dashboard.json)
 - [https://github.com/likexian/whois-parser](https://github.com/likexian/whois-parser)
 - [https://github.com/openrdap/rdap](https://github.com/openrdap/rdap)
 - [https://github.com/spf13/viper](https://github.com/spf13/viper)
-- [https://github.com/spf13/cobra](https://github.com/spf13/cobra)
