@@ -76,9 +76,12 @@ func (m *Metrics) SetDomainStatus(duration float64, domainInfo *domain.DomainInf
 
 	m.method.WithLabelValues(domainInfo.DomainName).Set(float64(domainInfo.CheckMethod))
 	m.duration.WithLabelValues(domainInfo.DomainName).Set(duration)
-	m.status.WithLabelValues(domainInfo.DomainName).Set(float64(domainInfo.Status()))
+	status := domainInfo.Status()
+	m.status.WithLabelValues(domainInfo.DomainName).Set(float64(status))
 	if domainInfo.ExpiryDate != nil {
 		m.expiresAt.WithLabelValues(domainInfo.DomainName).Set(float64(domainInfo.ExpiryDate.Unix()))
+	} else if status == domain.StatusFree {
+		m.expiresAt.DeleteLabelValues(domainInfo.DomainName)
 	}
 }
 

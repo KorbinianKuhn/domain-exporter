@@ -1,5 +1,5 @@
 services:
-  gitops:
+  domain-exporter:
     build: .
     ports:
       - 127.0.0.1:2112:2112
