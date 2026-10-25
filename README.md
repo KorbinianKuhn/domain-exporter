@@ -88,6 +88,28 @@ A prebuilt dashboard is [here](dashboard.json)
 
 ![Screenshot of the Grafana dashboard for Domain Exporter](dashboard.png)
 
+## SBOM & Attestations
+
+Every image is published with a signed SLSA build provenance and SPDX SBOM attestation. You can verify them with the [GitHub CLI](https://cli.github.com/):
+
+```sh
+# Build provenance
+gh attestation verify oci://ghcr.io/korbiniankuhn/domain-exporter:latest --owner KorbinianKuhn
+
+# SBOM
+gh attestation verify oci://ghcr.io/korbiniankuhn/domain-exporter:latest --owner KorbinianKuhn \
+  --predicate-type https://spdx.dev/Document/v2.3
+```
+
+The image also contains per-platform BuildKit SBOM and provenance attestations:
+
+```sh
+docker buildx imagetools inspect ghcr.io/korbiniankuhn/domain-exporter:latest --format '{{ json .SBOM }}'
+docker buildx imagetools inspect ghcr.io/korbiniankuhn/domain-exporter:latest --format '{{ json .Provenance }}'
+```
+
+The SBOM is also attached as `sbom.spdx.json` to every workflow run.
+
 ## Credits
 
 - [https://github.com/likexian/whois](https://github.com/likexian/whois)
