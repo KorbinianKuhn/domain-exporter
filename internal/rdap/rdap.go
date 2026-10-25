@@ -85,7 +85,6 @@ func queryDomain(url string) (*openrdap.Domain, error) {
 }
 
 func parseResult(result *openrdap.Domain) *domain.DomainInfo {
-	status := strings.Join(result.Status, ", ")
 	var expiryDate *time.Time
 
 	for _, ev := range result.Events {
@@ -101,7 +100,11 @@ func parseResult(result *openrdap.Domain) *domain.DomainInfo {
 
 	info := domain.NewDomainInfo(result.LDHName)
 	info.CheckMethod = domain.CheckMethodRdap
-	info.SetStatus([]string{status})
+	if len(result.Status) > 0 {
+		info.SetStatus(result.Status)
+	} else {
+		info.SetStatus([]string{"registered"})
+	}
 	info.ExpiryDate = expiryDate
 
 	return info
