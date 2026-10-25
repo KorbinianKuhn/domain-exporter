@@ -10,14 +10,16 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o /build ./cmd/main.go
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /build ./cmd/main.go
 
-# Runtime
+# Runtime (no shell or package manager, runs as uid 65532)
 
-FROM alpine:3.24
+FROM gcr.io/distroless/static-debian13:nonroot
 
 WORKDIR /domain-exporter
 COPY --from=builder /build /app
+
+USER nonroot:nonroot
 
 EXPOSE 2112
 

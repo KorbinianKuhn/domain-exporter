@@ -1,0 +1,6 @@
+# Only include what is needed to build the binary
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/

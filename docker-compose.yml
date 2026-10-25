@@ -5,3 +5,8 @@ services:
       - 127.0.0.1:2112:2112
     volumes:
       - ./config.yml:/domain-exporter/config.yml:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

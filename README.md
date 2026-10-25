@@ -42,7 +42,14 @@ services:
       - 127.0.0.1:2112:2112
     volumes:
       - ./config.yml:/domain-exporter/config.yml:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 ```
+
+The image is based on [distroless](https://github.com/GoogleContainerTools/distroless) and runs as non-root user `65532`, so the mounted `config.yml` must be readable by that user (e.g. `chmod 644 config.yml`).
 
 ## Monitoring
 
