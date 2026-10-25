@@ -1,8 +1,10 @@
 package rdap
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -17,13 +19,24 @@ var (
 	ErrRDAPNotSupported = fmt.Errorf("RDAP not supported for this TLD")
 )
 
+var requestTimeout = 30 * time.Second
+
+// Shared clients, so the bootstrap registry is cached between checks
+var (
+	httpClient      = &http.Client{Timeout: requestTimeout}
+	bootstrapClient = &bootstrap.Client{HTTP: httpClient}
+	client          = &openrdap.Client{HTTP: httpClient, Bootstrap: bootstrapClient}
+)
+
 func isTLDSupported(tld string) (bool, error) {
-	b := &bootstrap.Client{}
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+
 	q := &bootstrap.Question{
 		RegistryType: bootstrap.DNS,
 		Query:        tld,
 	}
-	answer, err := b.Lookup(q)
+	answer, err := bootstrapClient.Lookup(q.WithContext(ctx))
 	if err != nil {
 		return false, err
 	}
@@ -31,7 +44,7 @@ func isTLDSupported(tld string) (bool, error) {
 }
 
 func queryDomainWithConfiguredServer(url string) (*openrdap.Domain, error) {
-	client := &openrdap.Client{}
+	// QueryDomain applies its own 30s timeout
 	domainInfo, err := client.QueryDomain(url)
 	if err != nil {
 		return nil, err
@@ -45,14 +58,16 @@ func queryDomainWithCustomServer(serverURL, domain string) (*openrdap.Domain, er
 		return nil, fmt.Errorf("invalid server URL: %w", err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+
 	req := &openrdap.Request{
 		Type:   openrdap.DomainRequest,
 		Query:  domain,
 		Server: u,
 	}
 
-	client := &openrdap.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +99,7 @@ func queryDomain(url string) (*openrdap.Domain, error) {
 	return nil, ErrRDAPNotSupported
 }
 
-func parseResult(result *openrdap.Domain) *domain.DomainInfo {
+func parseResult(domainName string, result *openrdap.Domain) *domain.DomainInfo {
 	var expiryDate *time.Time
 
 	for _, ev := range result.Events {
@@ -98,7 +113,7 @@ func parseResult(result *openrdap.Domain) *domain.DomainInfo {
 		}
 	}
 
-	info := domain.NewDomainInfo(result.LDHName)
+	info := domain.NewDomainInfo(domainName)
 	info.CheckMethod = domain.CheckMethodRdap
 	if len(result.Status) > 0 {
 		info.SetStatus(result.Status)
@@ -127,5 +142,5 @@ func CheckDomain(url string) (*domain.DomainInfo, error) {
 		return nil, err
 	}
 
-	return parseResult(result), nil
+	return parseResult(url, result), nil
 }
