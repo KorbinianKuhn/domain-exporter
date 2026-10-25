@@ -44,6 +44,7 @@ func checkDomain(url string) *domain.DomainInfo {
 		return info
 	}
 
+	info = domain.NewDomainInfo(url)
 	info.CheckMethod = domain.CheckMethodFailed
 	slog.Warn("All check methods failed", "domain", url)
 
@@ -67,6 +68,7 @@ func main() {
 
 	wg := sync.WaitGroup{}
 	check := make(chan struct{})
+	done := make(chan struct{})
 
 	// Run check on trigger
 	wg.Add(1)
@@ -88,12 +90,22 @@ func main() {
 
 	slog.Info("domain-exporter started", "check_interval_in_seconds", c.CheckIntervalInSeconds)
 
-	// Run check on interval
+	// Run check on interval (closes check channel on shutdown)
 	go func() {
 		ticker := time.NewTicker(time.Duration(c.CheckIntervalInSeconds) * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			check <- struct{}{}
+		defer close(check)
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				select {
+				case check <- struct{}{}:
+				case <-done:
+					return
+				}
+			}
 		}
 	}()
 
@@ -124,7 +136,7 @@ func main() {
 	<-osSignal
 	slog.Info("received termination signal, shutting down")
 
-	close(check)
+	close(done)
 
 	// Stop http server
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
